@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cosmos Word Cloud</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Design tokens ── */
+    :root {
+      --bg:        #05050f;
+      --panel:     rgba(255,255,255,.04);
+      --border:    rgba(0,245,255,.15);
+      --cyan:      #00f5ff;
+      --purple:    #7b2fff;
+      --pink:      #ff6af5;
+      --gold:      #ffe56a;
+      --text:      #d0e8ff;
+      --muted:     #5a7a99;
+      --glow:      0 0 28px rgba(0,245,255,.35);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      overflow-x: hidden;
+    }
+
+    /* ── Starfield canvas ── */
+    #stars {
+      position: fixed; inset: 0; z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ── Layout wrapper ── */
+    .site {
+      position: relative; z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 3rem 0 2rem;
+    }
+    .eyebrow {
+      font-size: .72rem;
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      opacity: .8;
+      margin-bottom: .75rem;
+    }
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(2.2rem, 6vw, 4.5rem);
+      font-weight: 900;
+      line-height: 1.1;
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--pink) 55%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 30px rgba(0,245,255,.4));
+    }
+    .tagline {
+      margin-top: 1rem;
+      font-size: .85rem;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Stat bar ── */
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin: 2rem 0;
+    }
+    .stat-pill {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: .4rem 1.2rem;
+      font-size: .78rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .stat-pill .label { color: var(--muted); }
+    .stat-pill .value { color: var(--cyan); font-weight: 700; }
+
+    /* ── Word cloud card ── */
+    .cloud-card {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      overflow: hidden;
+      background: radial-gradient(ellipse at 50% 30%, rgba(123,47,255,.12) 0%, transparent 70%);
+      box-shadow: 0 0 60px rgba(0,245,255,.06), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    .cloud-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: conic-gradient(from 0deg at 50% 50%,
+        rgba(0,245,255,.05) 0deg, transparent 90deg,
+        rgba(123,47,255,.05) 180deg, transparent 270deg);
+      animation: spin 20s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #cloud-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 1.2rem;
+      transition: opacity .4s ease;
+    }
+
+    /* ── Loading overlay ── */
+    .loading-overlay {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(5,5,15,.85);
+      backdrop-filter: blur(6px);
+      border-radius: inherit;
+      gap: 1.25rem;
+      transition: opacity .4s;
+    }
+    .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .orbit-ring {
+      width: 60px; height: 60px;
+      border: 2px solid transparent;
+      border-top-color: var(--cyan);
+      border-right-color: var(--purple);
+      border-radius: 50%;
+      animation: orbit .8s linear infinite;
+    }
+    @keyframes orbit { to { transform: rotate(360deg); } }
+    .loading-text {
+      font-family: 'Orbitron', sans-serif;
+      font-size: .8rem;
+      letter-spacing: .15em;
+      color: var(--cyan);
+      opacity: .8;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1.75rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      font-family: 'Orbitron', sans-serif;
+      font-size: .78rem;
+      letter-spacing: .1em;
+      font-weight: 700;
+      padding: .65rem 1.6rem;
+      border-radius: 99px;
+      border: 1px solid;
+      cursor: pointer;
+      transition: box-shadow .2s, transform .15s, background .2s;
+    }
+    .btn:active { transform: scale(.96); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      border-color: transparent;
+      color: #fff;
+    }
+    .btn-primary:hover { box-shadow: var(--glow); }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .btn-ghost:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: 0 0 16px rgba(0,245,255,.2);
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 2rem; right: 2rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: .75rem;
+      padding: .75rem 1.5rem;
+      font-size: .82rem;
+      color: var(--cyan);
+      transform: translateY(120%);
+      transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+      backdrop-filter: blur(12px);
+      z-index: 999;
+    }
+    #toast.show { transform: translateY(0); }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      font-size: .72rem;
+      color: var(--muted);
+      line-height: 2;
+    }
+    footer a { color: var(--cyan); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Responsiveness ── */
+    @media (max-width: 600px) {
+      .stats { gap: .75rem; }
+      .stat-pill { font-size: .72rem; padding: .35rem .9rem; }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+
+<div class="site">
+  <header>
+    <p class="eyebrow">Live Space Intelligence</p>
+    <h1>COSMOS<br/>WORD CLOUD</h1>
+    <p class="tagline">Real-time vocabulary from the universe's latest dispatches</p>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-pill">
+      <span class="label">Articles</span>
+      <span class="value" id="stat-articles">—</span>
+    </div>
+    <div class="stat-pill">
+      <span class="label">Sources</span>
+      <span class="value" id="stat-sources">—</span>
+    </div>
+    <div class="stat-pill">
+      <span class="label">Updated</span>
+      <span class="value" id="stat-updated">—</span>
+    </div>
+  </div>
+
+  <!-- Word cloud -->
+  <div class="cloud-card">
+    <img id="cloud-img" src="" alt="Space Word Cloud" />
+    <div class="loading-overlay" id="loading">
+      <div class="orbit-ring"></div>
+      <p class="loading-text">Scanning the cosmos…</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="btn-refresh">⟳ &nbsp;Refresh Data</button>
+    <button class="btn btn-ghost" id="btn-download">↓ &nbsp;Download PNG</button>
+  </div>
+</div>
+
+<footer>
+  Data from <a href="https://api.spaceflightnewsapi.net" target="_blank">Spaceflight News API</a> •
+  Stored in MariaDB • Generated with Python WordCloud<br/>
+  Auto-refreshes every 30 minutes
+</footer>
+
+<div id="toast">✓ Cloud refreshed!</div>
+
+<script>
+/* ── Starfield ── */
+(function() {
+  const canvas = document.getElementById('stars');
+  const ctx    = canvas.getContext('2d');
+  let stars    = [];
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    stars = Array.from({ length: 260 }, () => ({
+      x:  Math.random() * canvas.width,
+      y:  Math.random() * canvas.height,
+      r:  Math.random() * 1.4 + .3,
+      a:  Math.random(),
+      da: (Math.random() * .003 + .001) * (Math.random() < .5 ? 1 : -1),
+    }));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of stars) {
+      s.a = Math.max(.1, Math.min(1, s.a + s.da));
+      if (s.a <= .1 || s.a >= 1) s.da *= -1;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(200,220,255,${s.a})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', resize);
+  resize(); draw();
+})();
+
+/* ── Stats ── */
+async function loadStats() {
+  try {
+    const res  = await fetch('/api/stats');
+    const data = await res.json();
+    document.getElementById('stat-articles').textContent = data.total_articles.toLocaleString();
+    document.getElementById('stat-sources').textContent  = data.unique_sources;
+    const d = new Date(data.last_updated);
+    document.getElementById('stat-updated').textContent =
+      isNaN(d) ? data.last_updated : d.toLocaleTimeString();
+  } catch(e) {
+    console.warn('Stats error', e);
+  }
+}
+
+/* ── Word cloud image ── */
+function loadCloud() {
+  const overlay = document.getElementById('loading');
+  const img     = document.getElementById('cloud-img');
+  overlay.classList.remove('hidden');
+  img.style.opacity = '0';
+
+  const bust   = new Date().getTime();
+  const newImg = new Image();
+  newImg.onload = () => {
+    img.src           = newImg.src;
+    img.style.opacity = '1';
+    overlay.classList.add('hidden');
+  };
+  newImg.onerror = () => {
+    overlay.classList.add('hidden');
+  };
+  newImg.src = `/wordcloud.png?t=${bust}`;
+}
+
+/* ── Refresh button ── */
+document.getElementById('btn-refresh').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled    = true;
+  btn.textContent = '⟳  Fetching…';
+  try {
+    await fetch('/api/refresh', { method: 'POST' });
+    await loadStats();
+    loadCloud();
+    showToast('✓ Cloud refreshed!');
+  } catch(e) {
+    showToast('✗ Refresh failed');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '⟳  Refresh Data';
+  }
+});
+
+/* ── Download button ── */
+document.getElementById('btn-download').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href     = '/wordcloud.png';
+  a.download = 'cosmos-wordcloud.png';
+  a.click();
+});
+
+/* ── Toast ── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+/* ── Init ── */
+loadStats();
+loadCloud();
+</script>
+</body>
+</html>
