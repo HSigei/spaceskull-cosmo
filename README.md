@@ -6,7 +6,7 @@ A live space-news word cloud website built with Python (Flask) + MariaDB.
 
 - **Fetches** the latest space news articles from the free [Spaceflight News API](https://api.spaceflightnewsapi.net) (NASA, SpaceX, ESA, etc.)
 - **Stores** titles & summaries in MariaDB (no duplicates, upsert-safe)
-- **Generates** a beautiful planet-shaped word cloud using the Python `wordcloud` library
+- **Generates** a beautiful skull-shaped word cloud using the Python `wordcloud` library
 - **Serves** a dark space-themed website with live stats, auto-refresh, and PNG download
 - **Auto-refreshes** the data every 30 minutes in the background
 
